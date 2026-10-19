@@ -107,3 +107,53 @@
 @keyframes draw-check { to { stroke-dashoffset: 0; } }
 @utility animate-pop { animation: pop-in 0.55s cubic-bezier(.2,.9,.3,1.3) both; }
 @utility animate-check { stroke-dasharray: 48; stroke-dashoffset: 48; animation: draw-check 0.5s 0.4s ease-out forwards; }
+
+/* ---------- Wow layer ---------- */
+:root {
+  --hero-from: oklch(0.26 0.11 262);
+  --hero-to: oklch(0.36 0.14 258);
+  --glass: oklch(1 0 0 / 0.72);
+  --glow-primary: 0 20px 45px -15px color-mix(in oklab, var(--primary) 55%, transparent);
+  --glow-accent: 0 18px 40px -12px color-mix(in oklab, var(--accent) 65%, transparent);
+  --gradient-on: linear-gradient(135deg, oklch(0.32 0.12 262), oklch(0.45 0.16 255));
+  --gradient-accent: linear-gradient(135deg, oklch(0.58 0.235 27), oklch(0.66 0.21 40));
+}
+.dark {
+  --hero-from: oklch(0.16 0.05 262);
+  --hero-to: oklch(0.26 0.1 262);
+  --glass: oklch(0.22 0.045 262 / 0.7);
+  --gradient-on: linear-gradient(135deg, oklch(0.45 0.16 260), oklch(0.6 0.16 250));
+}
+@theme inline {
+  --color-glass: var(--glass);
+}
+@utility bg-hero {
+  background: radial-gradient(120% 90% at 100% 0%, color-mix(in oklab, var(--accent) 35%, transparent) 0%, transparent 45%),
+    linear-gradient(160deg, var(--hero-from), var(--hero-to));
+}
+@utility bg-on { background: var(--gradient-on); }
+@utility bg-cta { background: var(--gradient-accent); }
+@utility shadow-glow { box-shadow: var(--glow-primary); }
+@utility shadow-glow-accent { box-shadow: var(--glow-accent); }
+@utility grid-pattern {
+  background-image: linear-gradient(oklch(1 0 0 / 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, oklch(1 0 0 / 0.06) 1px, transparent 1px);
+  background-size: 28px 28px;
+  mask-image: linear-gradient(to bottom, black, transparent);
+}
+@keyframes blob { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(20px,-25px) scale(1.15); } }
+@utility animate-blob { animation: blob 9s ease-in-out infinite; }
+@keyframes shimmer { 0% { transform: translateX(-120%); } 100% { transform: translateX(220%); } }
+@utility shimmer {
+  position: relative; overflow: hidden;
+  &::after { content: ""; position: absolute; inset: 0; width: 40%;
+    background: linear-gradient(90deg, transparent, oklch(1 0 0 / 0.35), transparent);
+    animation: shimmer 2.6s ease-in-out infinite; }
+}
+@keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+@utility animate-rise { animation: rise 0.5s cubic-bezier(.2,.8,.2,1) both; }
+@keyframes confetti { 0% { transform: translate(0,0) rotate(0); opacity: 1; } 100% { transform: translate(var(--x), var(--y)) rotate(540deg); opacity: 0; } }
+@utility animate-confetti { animation: confetti 1.4s cubic-bezier(.15,.7,.3,1) forwards; }
+@keyframes ring { 0% { transform: scale(.8); opacity: .7; } 100% { transform: scale(1.9); opacity: 0; } }
+@utility animate-ring { animation: ring 1.8s ease-out infinite; }
+@media (prefers-reduced-motion: reduce) { *, *::after { animation: none !important; transition: none !important; } }
