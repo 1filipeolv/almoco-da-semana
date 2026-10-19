@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useTema } from "@/lib/theme";
 import { Moon, Sun, Search, X, Check, CalendarCheck, Eraser, ArrowLeft, Sparkles, UtensilsCrossed, ChevronRight } from "lucide-react";
 import { buscarPessoas, diasDaSemana, segundaDaSemana, type Pessoa } from "@/lib/almoco-data";
 import { cn } from "@/lib/utils";
@@ -29,7 +30,7 @@ function saudacao() {
 }
 
 function Index() {
-  const [dark, setDark] = useState(false);
+  const { dark, toggle: toggleTema } = useTema();
   const [query, setQuery] = useState("");
   const [focused, setFocused] = useState(false);
   const [pessoa, setPessoa] = useState<Pessoa | null>(null);
@@ -46,19 +47,9 @@ function Index() {
   const total = marcas.filter(Boolean).length;
 
   useEffect(() => {
-    setDark(localStorage.getItem("tema") === "dark");
     setHoje(new Date());
     setOla(saudacao());
   }, []);
-  useEffect(() => {
-    document.documentElement.classList.toggle("dark", dark);
-  }, [dark]);
-
-  const toggleTema = () => {
-    const n = !dark;
-    setDark(n);
-    localStorage.setItem("tema", n ? "dark" : "light");
-  };
 
   const escolher = (p: Pessoa) => {
     setPessoa(p);
@@ -84,7 +75,7 @@ function Index() {
         <div className="pointer-events-none absolute -right-10 -top-10 h-48 w-48 rounded-full bg-accent/40 blur-3xl animate-blob [animation-delay:-4s]" />
 
         <div className="relative mx-auto max-w-3xl px-4 pb-20 pt-4">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 md:hidden">
             <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-dashed border-header-foreground/40 bg-header-foreground/5 text-[10px] font-bold uppercase tracking-wider backdrop-blur">
               Logo
             </div>
@@ -100,7 +91,7 @@ function Index() {
             </button>
           </div>
 
-          <div className="mt-8 animate-rise">
+          <div className="mt-8 animate-rise md:mt-4">
             <p className="inline-flex items-center gap-1.5 rounded-full bg-header-foreground/10 px-3 py-1 text-xs font-medium backdrop-blur">
               <Sparkles className="h-3.5 w-3.5 text-accent" /> Semana {fmt(dias[0]!)} – {fmt(dias[4]!)}
             </p>
@@ -138,7 +129,7 @@ function Index() {
       {sucesso && pessoa ? (
         <Sucesso pessoa={pessoa} total={total} marcas={marcas} dias={dias} onVoltar={() => { setSucesso(false); setPessoa(null); }} />
       ) : (
-        <main className={cn("relative mx-auto -mt-12 w-full max-w-3xl flex-1 px-4", pessoa ? "pb-40" : "pb-10")}>
+        <main className={cn("relative mx-auto -mt-12 w-full max-w-3xl flex-1 px-4", pessoa ? "pb-56 md:pb-40" : "pb-28 md:pb-10")}>
           {/* Busca */}
           <div className="relative z-20 rounded-3xl border bg-card p-2 shadow-glow animate-rise [animation-delay:200ms]">
             <div className="relative">
@@ -275,7 +266,7 @@ function Index() {
       )}
 
       {pessoa && !sucesso && !focused && (
-        <div className="fixed inset-x-0 bottom-0 z-30 px-3 pb-safe animate-rise">
+        <div className="fixed inset-x-0 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-30 px-3 animate-rise md:bottom-0 md:pb-safe">
           <div className="mx-auto flex max-w-3xl items-center gap-3 rounded-3xl border bg-glass p-2.5 pl-3 shadow-2xl backdrop-blur-xl">
             <ProgressRing value={total} />
             <div className="hidden shrink-0 min-[400px]:block">
