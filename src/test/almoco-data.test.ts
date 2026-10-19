@@ -13,6 +13,6 @@ describe("almoco data", () => {
     expect(segundaDaSemana(new Date(2026, 9, 24)).getDate()).toBe(26);
   });
   it("search ignores accents", () => {
-    expect(buscarPessoas("fabio")[0].nome).toBe("Fábio Martins");
+    expect(buscarPessoas("fabio")[0]?.nome).toBe("Fábio Martins");
   });
 });

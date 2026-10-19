@@ -80,7 +80,7 @@ function Index() {
               Almoço <span className="text-accent">SESI</span>
             </h1>
             <p className="truncate text-sm opacity-80">
-              Semana de {fmt(dias[0])} a {fmt(dias[4])}
+              Semana de {fmt(dias[0]!)} a {fmt(dias[4]!)}
             </p>
           </div>
           <button
@@ -286,7 +286,7 @@ function Sucesso({
               marcas[i] ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground",
             )}
           >
-            {NOMES_DIA[i].slice(0, 3)}
+            {NOMES_DIA[i]!.slice(0, 3)}
             <span className="font-normal opacity-80">{d.getDate()}</span>
           </div>
         ))}
