@@ -10,33 +10,53 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as CardapioRouteImport } from './routes/cardapio'
+import { Route as ListaRouteImport } from './routes/lista'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CardapioRoute = CardapioRouteImport.update({
+  id: '/cardapio',
+  path: '/cardapio',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ListaRoute = ListaRouteImport.update({
+  id: '/lista',
+  path: '/lista',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/cardapio': typeof CardapioRoute
+  '/lista': typeof ListaRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/cardapio': typeof CardapioRoute
+  '/lista': typeof ListaRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/cardapio': typeof CardapioRoute
+  '/lista': typeof ListaRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths: '/' | '/cardapio' | '/lista'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to: '/' | '/cardapio' | '/lista'
+  id: '__root__' | '/' | '/cardapio' | '/lista'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  CardapioRoute: typeof CardapioRoute
+  ListaRoute: typeof ListaRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,11 +68,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/cardapio': {
+      id: '/cardapio'
+      path: '/cardapio'
+      fullPath: '/cardapio'
+      preLoaderRoute: typeof CardapioRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/lista': {
+      id: '/lista'
+      path: '/lista'
+      fullPath: '/lista'
+      preLoaderRoute: typeof ListaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  CardapioRoute: CardapioRoute,
+  ListaRoute: ListaRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
