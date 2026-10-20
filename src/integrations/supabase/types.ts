@@ -14,16 +14,203 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      cardapio: {
+        Row: {
+          acompanhamento: string
+          data: string
+          prato: string
+          sobremesa: string
+          tags: string[]
+          updated_at: string
+        }
+        Insert: {
+          acompanhamento?: string
+          data: string
+          prato?: string
+          sobremesa?: string
+          tags?: string[]
+          updated_at?: string
+        }
+        Update: {
+          acompanhamento?: string
+          data?: string
+          prato?: string
+          sobremesa?: string
+          tags?: string[]
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      configuracoes: {
+        Row: {
+          dias_sem_almoco: string[]
+          id: number
+          prazo_dias_antes: number
+          prazo_hora: string
+          updated_at: string
+        }
+        Insert: {
+          dias_sem_almoco?: string[]
+          id?: number
+          prazo_dias_antes?: number
+          prazo_hora?: string
+          updated_at?: string
+        }
+        Update: {
+          dias_sem_almoco?: string[]
+          id?: number
+          prazo_dias_antes?: number
+          prazo_hora?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      grupos: {
+        Row: {
+          created_at: string
+          id: string
+          nome: string
+          tipo: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          nome: string
+          tipo?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          nome?: string
+          tipo?: string
+        }
+        Relationships: []
+      }
+      marcacoes: {
+        Row: {
+          data: string
+          id: string
+          origem: string
+          pessoa_id: string
+          updated_at: string
+          vai: boolean
+        }
+        Insert: {
+          data: string
+          id?: string
+          origem?: string
+          pessoa_id: string
+          updated_at?: string
+          vai: boolean
+        }
+        Update: {
+          data?: string
+          id?: string
+          origem?: string
+          pessoa_id?: string
+          updated_at?: string
+          vai?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marcacoes_pessoa_id_fkey"
+            columns: ["pessoa_id"]
+            isOneToOne: false
+            referencedRelation: "pessoas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pessoas: {
+        Row: {
+          ativo: boolean
+          created_at: string
+          grupo_id: string
+          id: string
+          nif: string
+          nome: string
+        }
+        Insert: {
+          ativo?: boolean
+          created_at?: string
+          grupo_id: string
+          id?: string
+          nif: string
+          nome: string
+        }
+        Update: {
+          ativo?: boolean
+          created_at?: string
+          grupo_id?: string
+          id?: string
+          nif?: string
+          nome?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pessoas_grupo_id_fkey"
+            columns: ["grupo_id"]
+            isOneToOne: false
+            referencedRelation: "grupos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_roles: {
+        Row: {
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      buscar_pessoas: {
+        Args: { _q: string }
+        Returns: {
+          grupo: string
+          id: string
+          nif: string
+          nome: string
+        }[]
+      }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
+      minhas_marcacoes: {
+        Args: { _fim: string; _inicio: string; _pessoa: string }
+        Returns: {
+          data: string
+          vai: boolean
+        }[]
+      }
+      prazo_encerrado: { Args: { _data: string }; Returns: boolean }
+      salvar_marcacoes: {
+        Args: { _datas: string[]; _pessoa: string; _vai: boolean[] }
+        Returns: number
+      }
+      sem_acento: { Args: { t: string }; Returns: string }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +337,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin"],
+    },
   },
 } as const
