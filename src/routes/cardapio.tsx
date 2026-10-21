@@ -62,7 +62,7 @@ function Cardapio() {
   };
 
   const compartilhar = () => {
-    const msgs = menu.filter((m) => m.prato).map((m, i) => `*${NOMES[i]} (${fmt(dias[i]!)})*\n🍽️ ${m.prato}\n🥗 ${m.acompanhamento}\n🍮 ${m.sobremesa}`);
+    const msgs = menu.map((m, i) => (m.prato ? `*${NOMES[i]} (${fmt(dias[i]!)})*\n🍽️ ${m.prato}\n🥗 ${m.acompanhamento}\n🍮 ${m.sobremesa}` : null)).filter(Boolean);
     const texto = `*Cardápio SESI — ${fmt(dias[0]!)} a ${fmt(dias[4]!)}*\n\n${msgs.join("\n\n")}`;
     window.open(`https://wa.me/?text=${encodeURIComponent(texto)}`, "_blank");
   };
