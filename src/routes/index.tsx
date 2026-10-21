@@ -1,8 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { Moon, Sun, Search, X, Check, CalendarCheck, Eraser, ArrowLeft, Sparkles, UtensilsCrossed, ChevronRight, Lock, Loader2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { NOMES_DIA, diasDaSemana, fmt, segundaDaSemana, type Pessoa } from "@/lib/almoco-data";
+import { bloqueioDoDia, iso, type Bloqueio, type ConfigPrazo } from "@/lib/prazo";
 import { useTema } from "@/lib/theme";
-import { Moon, Sun, Search, X, Check, CalendarCheck, Eraser, ArrowLeft, Sparkles, UtensilsCrossed, ChevronRight } from "lucide-react";
-import { buscarPessoas, diasDaSemana, segundaDaSemana, type Pessoa } from "@/lib/almoco-data";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/")({
@@ -19,14 +23,22 @@ export const Route = createFileRoute("/")({
   component: Index,
 });
 
-const NOMES_DIA = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta"];
-const fmt = (d: Date) => d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
-const mesmoDia = (a: Date, b: Date) => a.toDateString() === b.toDateString();
 const VAZIO = [false, false, false, false, false];
-
+const mesmoDia = (a: Date, b: Date) => a.toDateString() === b.toDateString();
 function saudacao() {
   const h = new Date().getHours();
   return h < 12 ? "Bom dia" : h < 18 ? "Boa tarde" : "Boa noite";
+}
+
+export function useConfig() {
+  return useQuery({
+    queryKey: ["config"],
+    queryFn: async (): Promise<ConfigPrazo> => {
+      const { data, error } = await supabase.from("configuracoes").select("prazo_hora, prazo_dias_antes, dias_sem_almoco").eq("id", 1).single();
+      if (error) throw error;
+      return data;
+    },
+  });
 }
 
 function Index() {
@@ -36,14 +48,16 @@ function Index() {
   const [pessoa, setPessoa] = useState<Pessoa | null>(null);
   const [marcas, setMarcas] = useState<boolean[]>(VAZIO);
   const [sucesso, setSucesso] = useState(false);
+  const [salvando, setSalvando] = useState(false);
+  const [sugestoes, setSugestoes] = useState<Pessoa[]>([]);
   const [hoje, setHoje] = useState<Date | null>(null);
   const [ola, setOla] = useState("Olá");
   const inputRef = useRef<HTMLInputElement>(null);
+  const { data: cfg } = useConfig();
 
   const seg = useMemo(() => segundaDaSemana(), []);
   const dias = useMemo(() => diasDaSemana(seg), [seg]);
-  const semanaKey = seg.toISOString().slice(0, 10);
-  const sugestoes = useMemo(() => buscarPessoas(query), [query]);
+  const bloqueios: Bloqueio[] = useMemo(() => dias.map((d) => bloqueioDoDia(iso(d), cfg)), [dias, cfg, hoje]);
   const total = marcas.filter(Boolean).length;
 
   useEffect(() => {
@@ -51,71 +65,76 @@ function Index() {
     setOla(saudacao());
   }, []);
 
-  const escolher = (p: Pessoa) => {
+  useEffect(() => {
+    const q = query.trim();
+    if (q.length < 2) return setSugestoes([]);
+    const t = setTimeout(async () => {
+      const { data } = await supabase.rpc("buscar_pessoas", { _q: q });
+      setSugestoes(data ?? []);
+    }, 200);
+    return () => clearTimeout(t);
+  }, [query]);
+
+  const escolher = async (p: Pessoa) => {
     setPessoa(p);
     setQuery("");
     inputRef.current?.blur();
-    const salvo = localStorage.getItem(`almoco:${semanaKey}:${p.nif}`);
-    setMarcas(salvo ? JSON.parse(salvo) : VAZIO);
+    setMarcas(VAZIO);
+    const { data } = await supabase.rpc("minhas_marcacoes", { _pessoa: p.id, _inicio: iso(dias[0]!), _fim: iso(dias[4]!) });
+    const mapa = new Map((data ?? []).map((m) => [m.data, m.vai]));
+    setMarcas(dias.map((d) => mapa.get(iso(d)) ?? false));
   };
 
-  const confirmar = () => {
+  const setLivres = (v: boolean) => setMarcas((m) => m.map((x, i) => (bloqueios[i] === "livre" ? v : x)));
+
+  const confirmar = async () => {
     if (!pessoa) return;
-    localStorage.setItem(`almoco:${semanaKey}:${pessoa.nif}`, JSON.stringify(marcas));
+    const idx = dias.map((_, i) => i).filter((i) => bloqueios[i] === "livre");
+    if (idx.length === 0) return toast.error("O prazo desta semana já encerrou.");
+    setSalvando(true);
+    const { error } = await supabase.rpc("salvar_marcacoes", {
+      _pessoa: pessoa.id,
+      _datas: idx.map((i) => iso(dias[i]!)),
+      _vai: idx.map((i) => marcas[i]!),
+    });
+    setSalvando(false);
+    if (error) return toast.error("Não foi possível salvar. Tente novamente.");
     setSucesso(true);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   return (
     <div className="min-h-dvh-screen flex flex-col bg-background">
-      {/* HERO */}
       <header className="relative overflow-hidden bg-hero text-header-foreground pt-safe">
         <div className="pointer-events-none absolute inset-0 grid-pattern" />
         <div className="pointer-events-none absolute -left-16 top-10 h-56 w-56 rounded-full bg-primary/40 blur-3xl animate-blob" />
         <div className="pointer-events-none absolute -right-10 -top-10 h-48 w-48 rounded-full bg-accent/40 blur-3xl animate-blob [animation-delay:-4s]" />
-
         <div className="relative mx-auto max-w-3xl px-4 pb-20 pt-4">
           <div className="flex items-center gap-3 md:hidden">
-            <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-dashed border-header-foreground/40 bg-header-foreground/5 text-[10px] font-bold uppercase tracking-wider backdrop-blur">
-              Logo
-            </div>
-            <p className="flex-1 text-sm font-semibold tracking-wide opacity-90">
-              Almoço <span className="text-accent">SESI</span>
-            </p>
-            <button
-              onClick={toggleTema}
-              aria-label="Alternar tema"
-              className="grid h-12 w-12 place-items-center rounded-2xl border border-header-foreground/15 bg-header-foreground/10 backdrop-blur transition hover:bg-header-foreground/20 active:scale-95"
-            >
+            <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-dashed border-header-foreground/40 bg-header-foreground/5 text-[10px] font-bold uppercase tracking-wider backdrop-blur">Logo</div>
+            <p className="flex-1 text-sm font-semibold tracking-wide opacity-90">Almoço <span className="text-accent">SESI</span></p>
+            <button onClick={toggleTema} aria-label="Alternar tema" className="grid h-12 w-12 place-items-center rounded-2xl border border-header-foreground/15 bg-header-foreground/10 backdrop-blur transition hover:bg-header-foreground/20 active:scale-95">
               {dark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
             </button>
           </div>
-
           <div className="mt-8 animate-rise md:mt-4">
             <p className="inline-flex items-center gap-1.5 rounded-full bg-header-foreground/10 px-3 py-1 text-xs font-medium backdrop-blur">
               <Sparkles className="h-3.5 w-3.5 text-accent" /> Semana {fmt(dias[0]!)} – {fmt(dias[4]!)}
+              {cfg && <span className="opacity-75">· prazo {cfg.prazo_hora.slice(0, 5)}{cfg.prazo_dias_antes > 0 ? ` (${cfg.prazo_dias_antes}d antes)` : ""}</span>}
             </p>
             <h1 className="mt-3 text-[2rem] font-extrabold leading-[1.05] tracking-tight sm:text-5xl">
               {ola}! <br />
-              <span className="bg-gradient-to-r from-header-foreground to-header-foreground/60 bg-clip-text text-transparent">
-                Vai almoçar com a gente?
-              </span>
+              <span className="bg-gradient-to-r from-header-foreground to-header-foreground/60 bg-clip-text text-transparent">Vai almoçar com a gente?</span>
             </h1>
           </div>
-
-          {/* Mini calendário */}
           <div className="mt-6 grid grid-cols-5 gap-2 animate-rise [animation-delay:120ms]">
             {dias.map((d, i) => {
               const isHoje = hoje && mesmoDia(d, hoje);
               const on = pessoa && marcas[i];
               return (
-                <div
-                  key={i}
-                  className={cn(
-                    "relative flex flex-col items-center rounded-2xl border py-2.5 backdrop-blur transition-all duration-300",
-                    on ? "border-transparent bg-header-foreground text-primary scale-105" : "border-header-foreground/15 bg-header-foreground/5",
-                  )}
-                >
+                <div key={i} className={cn("relative flex flex-col items-center rounded-2xl border py-2.5 backdrop-blur transition-all duration-300",
+                  on ? "scale-105 border-transparent bg-header-foreground text-primary" : "border-header-foreground/15 bg-header-foreground/5",
+                  bloqueios[i] === "sem-almoco" && "opacity-40")}>
                   <span className="text-[11px] font-semibold uppercase opacity-70">{NOMES_DIA[i]!.slice(0, 3)}</span>
                   <span className="text-lg font-extrabold">{d.getDate()}</span>
                   {isHoje && <span className="absolute -top-1 right-1.5 h-2.5 w-2.5 rounded-full bg-accent ring-2 ring-header" />}
@@ -130,51 +149,35 @@ function Index() {
         <Sucesso pessoa={pessoa} total={total} marcas={marcas} dias={dias} onVoltar={() => { setSucesso(false); setPessoa(null); }} />
       ) : (
         <main className={cn("relative mx-auto -mt-12 w-full max-w-3xl flex-1 px-4", pessoa ? "pb-56 md:pb-40" : "pb-28 md:pb-10")}>
-          {/* Busca */}
           <div className="relative z-20 rounded-3xl border bg-card p-2 shadow-glow animate-rise [animation-delay:200ms]">
             <div className="relative">
               <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-primary" />
-              <input
-                id="busca"
-                ref={inputRef}
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                onFocus={() => setFocused(true)}
-                onBlur={() => setTimeout(() => setFocused(false), 150)}
-                placeholder={pessoa ? "Trocar pessoa…" : "Seu nome ou NIF"}
-                aria-label="Buscar por nome ou NIF"
-                autoComplete="off"
-                enterKeyHint="search"
-                className="h-14 w-full rounded-2xl bg-muted pl-12 pr-12 text-base font-medium text-card-foreground outline-none transition placeholder:text-muted-foreground focus:bg-card focus:ring-2 focus:ring-ring/40"
-              />
+              <input id="busca" ref={inputRef} value={query} onChange={(e) => setQuery(e.target.value)}
+                onFocus={() => setFocused(true)} onBlur={() => setTimeout(() => setFocused(false), 150)}
+                placeholder={pessoa ? "Trocar pessoa…" : "Seu nome ou NIF"} aria-label="Buscar por nome ou NIF"
+                autoComplete="off" enterKeyHint="search"
+                className="h-14 w-full rounded-2xl bg-muted pl-12 pr-12 text-base font-medium text-card-foreground outline-none transition placeholder:text-muted-foreground focus:bg-card focus:ring-2 focus:ring-ring/40" />
               {query && (
-                <button onClick={() => setQuery("")} aria-label="Limpar busca" className="absolute right-1 top-1/2 grid h-12 w-12 -translate-y-1/2 place-items-center text-muted-foreground">
-                  <X className="h-5 w-5" />
-                </button>
+                <button onClick={() => setQuery("")} aria-label="Limpar busca" className="absolute right-1 top-1/2 grid h-12 w-12 -translate-y-1/2 place-items-center text-muted-foreground"><X className="h-5 w-5" /></button>
               )}
             </div>
-            {focused && query.trim() && (
+            {focused && query.trim().length >= 2 && (
               <ul className="mt-2 max-h-80 overflow-y-auto">
                 {sugestoes.length === 0 ? (
                   <li className="px-4 py-5 text-center text-sm text-muted-foreground">Ninguém encontrado 🤔</li>
-                ) : (
-                  sugestoes.map((p, idx) => (
-                    <li key={p.nif} className="animate-rise" style={{ animationDelay: `${idx * 35}ms` }}>
-                      <button
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => escolher(p)}
-                        className="group flex min-h-14 w-full items-center gap-3 rounded-2xl px-3 py-2 text-left transition hover:bg-muted active:scale-[.99]"
-                      >
-                        <Avatar nome={p.nome} />
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate font-semibold text-card-foreground">{p.nome}</p>
-                          <p className="text-xs text-muted-foreground">NIF {p.nif} · {p.grupo}</p>
-                        </div>
-                        <ChevronRight className="h-5 w-5 text-muted-foreground transition group-hover:translate-x-0.5" />
-                      </button>
-                    </li>
-                  ))
-                )}
+                ) : sugestoes.map((p, idx) => (
+                  <li key={p.id} className="animate-rise" style={{ animationDelay: `${idx * 35}ms` }}>
+                    <button onMouseDown={(e) => e.preventDefault()} onClick={() => escolher(p)}
+                      className="group flex min-h-14 w-full items-center gap-3 rounded-2xl px-3 py-2 text-left transition hover:bg-muted active:scale-[.99]">
+                      <Avatar nome={p.nome} />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-semibold text-card-foreground">{p.nome}</p>
+                        <p className="text-xs text-muted-foreground">NIF {p.nif} · {p.grupo}</p>
+                      </div>
+                      <ChevronRight className="h-5 w-5 text-muted-foreground transition group-hover:translate-x-0.5" />
+                    </button>
+                  </li>
+                ))}
               </ul>
             )}
           </div>
@@ -183,15 +186,13 @@ function Index() {
             <div className="mt-12 flex flex-col items-center text-center animate-rise [animation-delay:300ms]">
               <div className="relative mb-5">
                 <div className="absolute inset-0 rounded-full bg-primary/30 animate-ring" />
-                <div className="relative grid h-24 w-24 place-items-center rounded-full bg-on text-primary-foreground shadow-glow">
-                  <UtensilsCrossed className="h-10 w-10" />
-                </div>
+                <div className="relative grid h-24 w-24 place-items-center rounded-full bg-on text-primary-foreground shadow-glow"><UtensilsCrossed className="h-10 w-10" /></div>
               </div>
               <p className="text-lg font-bold">Comece pela busca</p>
               <p className="mt-1 max-w-xs text-sm text-muted-foreground">Encontre seu nome e marque os dias em segundos.</p>
             </div>
           ) : (
-            <div key={pessoa.nif}>
+            <div key={pessoa.id}>
               <div className="mt-5 flex items-center gap-3 rounded-3xl border bg-card p-4 animate-rise">
                 <Avatar nome={pessoa.nome} big />
                 <div className="min-w-0 flex-1">
@@ -200,62 +201,43 @@ function Index() {
                 </div>
                 <GrupoTag grupo={pessoa.grupo} />
               </div>
-
               <div className="mt-3 grid grid-cols-2 gap-3 animate-rise [animation-delay:60ms]">
-                <button
-                  onClick={() => setMarcas([true, true, true, true, true])}
-                  className="flex h-12 items-center justify-center gap-2 rounded-2xl bg-secondary px-3 text-sm font-semibold text-secondary-foreground transition hover:bg-secondary/70 active:scale-[.97]"
-                >
+                <button onClick={() => setLivres(true)} className="flex h-12 items-center justify-center gap-2 rounded-2xl bg-secondary px-3 text-sm font-semibold text-secondary-foreground transition hover:bg-secondary/70 active:scale-[.97]">
                   <CalendarCheck className="h-4 w-4" /> Semana toda
                 </button>
-                <button
-                  onClick={() => setMarcas(VAZIO)}
-                  className="flex h-12 items-center justify-center gap-2 rounded-2xl border bg-card px-3 text-sm font-semibold transition hover:bg-muted active:scale-[.97]"
-                >
+                <button onClick={() => setLivres(false)} className="flex h-12 items-center justify-center gap-2 rounded-2xl border bg-card px-3 text-sm font-semibold transition hover:bg-muted active:scale-[.97]">
                   <Eraser className="h-4 w-4" /> Limpar
                 </button>
               </div>
-
               <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
                 {dias.map((d, i) => {
                   const on = marcas[i];
+                  const b = bloqueios[i];
+                  const travado = b !== "livre";
                   return (
-                    <button
-                      key={i}
-                      role="switch"
-                      aria-checked={on}
+                    <button key={i} role="switch" aria-checked={on} disabled={travado}
                       onClick={() => setMarcas((m) => m.map((v, j) => (j === i ? !v : v)))}
                       style={{ animationDelay: `${100 + i * 60}ms` }}
-                      className={cn(
-                        "group relative flex min-h-24 items-center gap-4 overflow-hidden rounded-3xl border p-4 text-left transition-all duration-300 animate-rise active:scale-[.97] lg:min-h-48 lg:flex-col lg:items-stretch lg:justify-between",
+                      className={cn("group relative flex min-h-24 items-center gap-4 overflow-hidden rounded-3xl border p-4 text-left transition-all duration-300 animate-rise active:scale-[.97] disabled:active:scale-100 lg:min-h-48 lg:flex-col lg:items-stretch lg:justify-between",
                         on ? "border-transparent bg-on text-primary-foreground shadow-glow" : "bg-card hover:border-primary/40",
-                      )}
-                    >
-                      <span className={cn("pointer-events-none absolute -right-6 -top-6 text-7xl font-black transition-opacity duration-300", on ? "opacity-15" : "opacity-[.04]")}>
-                        {d.getDate()}
-                      </span>
+                        travado && "opacity-60")}>
+                      <span className={cn("pointer-events-none absolute -right-6 -top-6 text-7xl font-black", on ? "opacity-15" : "opacity-[.04]")}>{d.getDate()}</span>
                       <div className="relative flex-1">
                         <p className="text-lg font-bold">{NOMES_DIA[i]}</p>
                         <p className={cn("text-sm", on ? "opacity-80" : "text-muted-foreground")}>
-                          {on ? "Vou almoçar 🍽️" : "Não vou"}
+                          {b === "sem-almoco" ? "Sem almoço neste dia" : b === "prazo" ? (on ? "Vou almoçar · prazo encerrado" : "Prazo encerrado") : on ? "Vou almoçar 🍽️" : "Não vou"}
                         </p>
                       </div>
-                      {/* Toggle */}
-                      <span
-                        className={cn(
-                          "relative flex h-12 w-24 shrink-0 items-center rounded-full p-1 transition-colors duration-300",
-                          on ? "bg-primary-foreground/25" : "bg-muted",
-                        )}
-                      >
-                        <span
-                          className={cn(
-                            "grid h-10 w-10 place-items-center rounded-full shadow-md transition-all duration-300 ease-[cubic-bezier(.3,1.5,.5,1)]",
-                            on ? "translate-x-12 bg-primary-foreground text-primary" : "translate-x-0 bg-card text-muted-foreground",
-                          )}
-                        >
-                          {on ? <Check className="h-5 w-5" strokeWidth={3} /> : <X className="h-5 w-5" />}
+                      {travado ? (
+                        <span className="relative grid h-12 w-12 shrink-0 place-items-center rounded-full bg-muted text-muted-foreground"><Lock className="h-5 w-5" /></span>
+                      ) : (
+                        <span className={cn("relative flex h-12 w-24 shrink-0 items-center rounded-full p-1 transition-colors duration-300", on ? "bg-primary-foreground/25" : "bg-muted")}>
+                          <span className={cn("grid h-10 w-10 place-items-center rounded-full shadow-md transition-all duration-300 ease-[cubic-bezier(.3,1.5,.5,1)]",
+                            on ? "translate-x-12 bg-primary-foreground text-primary" : "translate-x-0 bg-card text-muted-foreground")}>
+                            {on ? <Check className="h-5 w-5" strokeWidth={3} /> : <X className="h-5 w-5" />}
+                          </span>
                         </span>
-                      </span>
+                      )}
                     </button>
                   );
                 })}
@@ -273,11 +255,9 @@ function Index() {
               <p className="text-base font-extrabold leading-none">{total} de 5 dias</p>
               <p className="mt-0.5 text-xs text-muted-foreground">{total === 0 ? "nenhum marcado" : total === 5 ? "semana completa!" : "marcados"}</p>
             </div>
-            <button
-              onClick={confirmar}
-              className="shimmer h-14 flex-1 rounded-2xl bg-cta px-4 text-base font-bold text-accent-foreground shadow-glow-accent transition active:scale-[.97]"
-            >
-              Confirmar marcação
+            <button onClick={confirmar} disabled={salvando}
+              className="shimmer flex h-14 flex-1 items-center justify-center gap-2 rounded-2xl bg-cta px-4 text-base font-bold text-accent-foreground shadow-glow-accent transition active:scale-[.97] disabled:opacity-70">
+              {salvando && <Loader2 className="h-5 w-5 animate-spin" />} Confirmar marcação
             </button>
           </div>
         </div>
@@ -292,11 +272,7 @@ function ProgressRing({ value }: { value: number }) {
     <div className="relative grid h-12 w-12 shrink-0 place-items-center">
       <svg viewBox="0 0 48 48" className="absolute inset-0 -rotate-90">
         <circle cx="24" cy="24" r={r} fill="none" strokeWidth="5" className="stroke-muted" />
-        <circle
-          cx="24" cy="24" r={r} fill="none" strokeWidth="5" strokeLinecap="round"
-          className="stroke-primary transition-all duration-500"
-          strokeDasharray={c} strokeDashoffset={c - (c * value) / 5}
-        />
+        <circle cx="24" cy="24" r={r} fill="none" strokeWidth="5" strokeLinecap="round" className="stroke-primary transition-all duration-500" strokeDasharray={c} strokeDashoffset={c - (c * value) / 5} />
       </svg>
       <span className="text-sm font-extrabold">{value}/5</span>
     </div>
@@ -305,17 +281,13 @@ function ProgressRing({ value }: { value: number }) {
 
 function Avatar({ nome, big }: { nome: string; big?: boolean }) {
   const ini = nome.split(" ").filter(Boolean).slice(0, 2).map((s) => s[0]).join("");
-  return (
-    <div className={cn("grid shrink-0 place-items-center rounded-2xl bg-on font-bold text-primary-foreground", big ? "h-14 w-14 text-lg" : "h-10 w-10 text-sm")}>
-      {ini}
-    </div>
-  );
+  return <div className={cn("grid shrink-0 place-items-center rounded-2xl bg-on font-bold text-primary-foreground", big ? "h-14 w-14 text-lg" : "h-10 w-10 text-sm")}>{ini}</div>;
 }
 
 function GrupoTag({ grupo }: { grupo: string }) {
   return (
     <span className={cn("shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold", grupo === "Robótica" ? "bg-accent/15 text-accent" : "bg-primary/10 text-primary")}>
-      {grupo === "Robótica" ? "🤖 Robótica" : "Colaborador"}
+      {grupo === "Robótica" ? "🤖 Robótica" : grupo}
     </span>
   );
 }
@@ -323,30 +295,22 @@ function GrupoTag({ grupo }: { grupo: string }) {
 const CONFETE_CORES = ["bg-accent", "bg-primary", "bg-success", "bg-header-foreground"];
 
 function Sucesso({ pessoa, total, marcas, dias, onVoltar }: { pessoa: Pessoa; total: number; marcas: boolean[]; dias: Date[]; onVoltar: () => void }) {
-  const confete = useMemo(
-    () => Array.from({ length: 28 }, (_, i) => {
-      const ang = (i / 28) * Math.PI * 2;
-      const dist = 110 + (i % 4) * 30;
-      return { x: Math.cos(ang) * dist, y: Math.sin(ang) * dist - 40, cor: CONFETE_CORES[i % 4]!, d: (i % 5) * 40 };
-    }),
-    [],
-  );
+  const confete = useMemo(() => Array.from({ length: 28 }, (_, i) => {
+    const ang = (i / 28) * Math.PI * 2;
+    const dist = 110 + (i % 4) * 30;
+    return { x: Math.cos(ang) * dist, y: Math.sin(ang) * dist - 40, cor: CONFETE_CORES[i % 4]!, d: (i % 5) * 40 };
+  }), []);
   return (
-    <main className="relative mx-auto -mt-12 w-full max-w-md flex-1 px-4 pb-safe">
+    <main className="relative mx-auto -mt-12 w-full max-w-md flex-1 px-4 pb-28 md:pb-safe">
       <div className="flex flex-col items-center rounded-3xl border bg-card px-6 py-10 text-center shadow-glow animate-rise">
         <div className="relative">
           {confete.map((c, i) => (
-            <span
-              key={i}
-              className={cn("absolute left-1/2 top-1/2 h-2.5 w-1.5 rounded-sm animate-confetti", c.cor)}
-              style={{ "--x": `${c.x}px`, "--y": `${c.y}px`, animationDelay: `${300 + c.d}ms` } as CSSProperties}
-            />
+            <span key={i} className={cn("absolute left-1/2 top-1/2 h-2.5 w-1.5 rounded-sm animate-confetti", c.cor)}
+              style={{ "--x": `${c.x}px`, "--y": `${c.y}px`, animationDelay: `${300 + c.d}ms` } as CSSProperties} />
           ))}
           <div className="absolute inset-0 rounded-full bg-success/40 animate-ring" />
           <div className="animate-pop relative grid h-28 w-28 place-items-center rounded-full bg-success text-success-foreground shadow-xl">
-            <svg viewBox="0 0 24 24" className="h-14 w-14" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round">
-              <path className="animate-check" d="M5 12.5l4.5 4.5L19 7.5" />
-            </svg>
+            <svg viewBox="0 0 24 24" className="h-14 w-14" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round"><path className="animate-check" d="M5 12.5l4.5 4.5L19 7.5" /></svg>
           </div>
         </div>
         <h2 className="mt-8 text-3xl font-extrabold tracking-tight animate-rise [animation-delay:400ms]">Tudo certo!</h2>
@@ -355,11 +319,8 @@ function Sucesso({ pessoa, total, marcas, dias, onVoltar }: { pessoa: Pessoa; to
         </p>
         <div className="mt-6 grid w-full grid-cols-5 gap-2">
           {dias.map((d, i) => (
-            <div
-              key={i}
-              style={{ animationDelay: `${600 + i * 80}ms` }}
-              className={cn("flex flex-col items-center rounded-2xl py-2.5 text-xs font-semibold animate-rise", marcas[i] ? "bg-on text-primary-foreground shadow-glow" : "bg-muted text-muted-foreground")}
-            >
+            <div key={i} style={{ animationDelay: `${600 + i * 80}ms` }}
+              className={cn("flex flex-col items-center rounded-2xl py-2.5 text-xs font-semibold animate-rise", marcas[i] ? "bg-on text-primary-foreground shadow-glow" : "bg-muted text-muted-foreground")}>
               {NOMES_DIA[i]!.slice(0, 3)}
               <span className="text-base font-extrabold">{d.getDate()}</span>
               {marcas[i] ? <Check className="h-3.5 w-3.5" strokeWidth={3} /> : <X className="h-3.5 w-3.5" />}
