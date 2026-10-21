@@ -1,18 +1,15 @@
-import { Link, useLocation } from "@tanstack/react-router";
-import { CalendarCheck, ChefHat, UtensilsCrossed, Moon, Sun, Shield } from "lucide-react";
+import { Link } from "@tanstack/react-router";
+import { CalendarCheck, ChefHat, UtensilsCrossed, Moon, Sun } from "lucide-react";
 import { useTema } from "@/lib/theme";
 
 const ITENS = [
   { to: "/", label: "Marcar", icon: CalendarCheck },
   { to: "/cardapio", label: "Cardápio", icon: UtensilsCrossed },
   { to: "/lista", label: "Cozinha", icon: ChefHat },
-  { to: "/admin", label: "Admin", icon: Shield },
 ] as const;
 
 export function AppNav() {
   const { dark, toggle } = useTema();
-  const { pathname } = useLocation();
-  if (pathname.startsWith("/admin")) return null;
   return (
     <>
       {/* Desktop: topo */}
@@ -40,7 +37,7 @@ export function AppNav() {
 
       {/* Celular: barra inferior */}
       <nav className="fixed inset-x-0 bottom-0 z-40 border-t bg-glass backdrop-blur-xl md:hidden pb-[env(safe-area-inset-bottom)] print:hidden">
-        <div className="grid h-16 grid-cols-4">
+        <div className="grid h-16 grid-cols-3">
           {ITENS.map(({ to, label, icon: Icon }) => (
             <Link
               key={to}

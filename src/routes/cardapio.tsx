@@ -2,10 +2,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, Leaf, Salad, IceCreamCone, Share2, Sparkles } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { diasDaSemana, segundaDaSemana } from "@/lib/almoco-data";
-import { iso } from "@/lib/prazo";
+import { cardapioDaSemana, type Tag } from "@/lib/cardapio-data";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/cardapio")({
@@ -24,7 +22,7 @@ export const Route = createFileRoute("/cardapio")({
 
 const NOMES = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta"];
 const fmt = (d: Date) => d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
-const TAG_ESTILO: Record<string, string> = {
+const TAG_ESTILO: Record<Tag, string> = {
   Vegetariano: "bg-success/15 text-success",
   "Sem glúten": "bg-accent/12 text-accent",
   "Sem lactose": "bg-primary/10 text-primary",
@@ -43,15 +41,7 @@ function Cardapio() {
     return s;
   }, [offset]);
   const dias = useMemo(() => diasDaSemana(seg), [seg]);
-  const { data: linhas = [], isLoading } = useQuery({
-    queryKey: ["cardapio", iso(seg)],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("cardapio").select("*").gte("data", iso(dias[0]!)).lte("data", iso(dias[4]!));
-      if (error) throw error;
-      return data;
-    },
-  });
-  const menu = dias.map((d) => linhas.find((l) => l.data === iso(d)) ?? { prato: "", acompanhamento: "", sobremesa: "", tags: [] as string[] });
+  const menu = useMemo(() => cardapioDaSemana(offset), [offset]);
   const idxHoje = hoje ? dias.findIndex((d) => d.toDateString() === hoje.toDateString()) : -1;
 
   useEffect(() => setAtivo(idxHoje >= 0 ? idxHoje : 0), [idxHoje, offset]);
@@ -62,8 +52,8 @@ function Cardapio() {
   };
 
   const compartilhar = () => {
-    const msgs = menu.map((m, i) => (m.prato ? `*${NOMES[i]} (${fmt(dias[i]!)})*\n🍽️ ${m.prato}\n🥗 ${m.acompanhamento}\n🍮 ${m.sobremesa}` : null)).filter(Boolean);
-    const texto = `*Cardápio SESI — ${fmt(dias[0]!)} a ${fmt(dias[4]!)}*\n\n${msgs.join("\n\n")}`;
+    const linhas = menu.map((m, i) => `*${NOMES[i]} (${fmt(dias[i]!)})*\n🍽️ ${m.prato}\n🥗 ${m.acompanhamento}\n🍮 ${m.sobremesa}`);
+    const texto = `*Cardápio SESI — ${fmt(dias[0]!)} a ${fmt(dias[4]!)}*\n\n${linhas.join("\n\n")}`;
     window.open(`https://wa.me/?text=${encodeURIComponent(texto)}`, "_blank");
   };
 
@@ -125,11 +115,11 @@ function Cardapio() {
                   </div>
                   {isHoje && <span className="rounded-full bg-accent px-3 py-1 text-xs font-bold text-accent-foreground shadow-glow-accent">HOJE</span>}
                 </div>
-                <h3 className="relative mt-4 text-xl font-bold leading-snug lg:text-lg">{m.prato || (isLoading ? "Carregando…" : "Cardápio não publicado")}</h3>
-                {m.prato && <ul className={cn("relative mt-3 space-y-2 text-sm", isHoje ? "opacity-90" : "text-muted-foreground")}>
+                <h3 className="relative mt-4 text-xl font-bold leading-snug lg:text-lg">{m.prato}</h3>
+                <ul className={cn("relative mt-3 space-y-2 text-sm", isHoje ? "opacity-90" : "text-muted-foreground")}>
                   <li className="flex gap-2"><Salad className="mt-0.5 h-4 w-4 shrink-0" /> {m.acompanhamento}</li>
                   <li className="flex gap-2"><IceCreamCone className="mt-0.5 h-4 w-4 shrink-0" /> {m.sobremesa}</li>
-                </ul>}
+                </ul>
                 {m.tags.length > 0 && (
                   <div className="relative mt-auto flex flex-wrap gap-1.5 pt-4">
                     {m.tags.map((t) => (
